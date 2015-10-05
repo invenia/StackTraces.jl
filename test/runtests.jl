@@ -1,4 +1,4 @@
-using StackTrace
+using StackTraces
 using Base.Test
 
 # write your own tests here
