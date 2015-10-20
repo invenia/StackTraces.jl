@@ -1,7 +1,9 @@
 module StackTraces
 
 
-export StackFrame, Stack, stacktrace, format_stacktrace, show, show_stacktrace
+import Base.show
+export StackFrame, StackTrace
+export stacktrace, catch_stacktrace, format_stacktrace, show, show_stacktrace
 
 
 immutable StackFrame
@@ -11,13 +13,18 @@ immutable StackFrame
     from_c::Bool
 end
 
-typealias Stack Array{StackFrame, 1}
+typealias StackTrace Vector{StackFrame}
 
 
-function stacktrace(c_funcs::Bool=false)
+"""
+Returns a stack trace in the form of a vector of StackFrames. Each StackFrame contains a
+function name, a file name, a line number, and a flag indicating whether it's a C function.
+(By default `stacktrace` doesn't return C functions, but this can be enabled.)
+"""
+function stacktrace(trace::Vector{Ptr{Void}}, c_funcs::Bool=false)
     stack = [
         ccall(:jl_lookup_code_address, Any, (Ptr{Void}, Cint), frame, 0)
-        for frame in backtrace()
+        for frame in trace
     ]
 
     # Convert the vector of tuples into a vector of StackFrames.
@@ -34,7 +41,20 @@ function stacktrace(c_funcs::Bool=false)
     remove_frames!(stack, :stacktrace)
 end
 
-function remove_frames!(stack::Stack, name::Symbol)
+stacktrace(c_funcs::Bool=false) = stacktrace(backtrace(), c_funcs)
+
+"""
+Returns the stack trace for the most recent error thrown, rather than the current context.
+"""
+catch_stacktrace(c_funcs::Bool=false) = stacktrace(catch_backtrace(), c_funcs)
+
+"""
+Takes a StackTrace (a vector of StackFrames) and a function name (a Symbol) and removes the
+StackFrame specified by the function name from the StackTrace (also removing all functions
+above the specified function). Primarily used to remove StackTraces functions from the Stack
+prior to returning it.
+"""
+function remove_frames!(stack::StackTrace, name::Symbol)
     # Remove the frame for a given function (and all functions called by that function).
     splice!(stack, 1:findlast(map(frame -> frame.name == name, stack)))
     return stack
@@ -44,12 +64,12 @@ function format_frame(frame::StackFrame)
     string(frame.name != "" ? frame.name : "?", " at ", frame.file, ":", frame.line)
 end
 
-function format_stacktrace(stack::Stack, separator::String, finish::String="")
+function format_stacktrace(stack::StackTrace, separator::AbstractString, finish::AbstractString="")
     if isempty(stack)
         return ""
     end
 
-    string(join(map(format_frame, stack), separator), finish)
+    string(separator, join(map(format_frame, stack), separator), finish)
 end
 
 function show(io::IO, frame::StackFrame)
@@ -58,11 +78,11 @@ end
 
 show(frame::StackFrame) = show(STDOUT, frame)
 
-function show(io::IO, stack::Stack)
-    print(io, "  ", format_stacktrace(stack, "\n  "))
+function show(io::IO, stack::StackTrace)
+    println(io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")", format_stacktrace(stack, "\n  "))
 end
 
-show(stack::Stack) = show(STDOUT, stack)
+show(stack::StackTrace) = show(STDOUT, stack)
 
 # Convenience functions for when you don't already have a stack trace handy.
 show_stacktrace() = show(STDOUT, remove_frames!(stacktrace(), :show_stacktrace))
