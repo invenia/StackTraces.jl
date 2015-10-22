@@ -1,6 +1,6 @@
 # StackTraces.jl
 
-[![Build Status](https://travis-ci.org/invenia/StackTraces.jl.svg?branch=master)](https://travis-ci.org/spurll/StackTraces.jl)
+[![Build Status](https://travis-ci.org/invenia/StackTraces.jl.svg?branch=master)](https://travis-ci.org/invenia/StackTraces.jl)
 
 `StackTraces.jl` provides simple stack traces that are both human readable and easy to use programmatically.
 
@@ -23,22 +23,41 @@ julia> stacktrace()
    anonymous at task.jl:91
 ```
 
-`stacktrace` returns a vector of `StackFrame`s (for ease of use the alias `StackTrace` is used in place of `Vector{StackFrame}`).
+Calling `stacktrace` returns a vector of `StackFrame`s. For ease of use, the alias `StackTrace` can be used in place of `Vector{StackFrame}`.
 
 ```julia
-julia> function example()
-           return stacktrace()
-       end
+julia> example() = stacktrace()
 example (generic function with 1 method)
 
-julia> stack = example()
+julia> example()
 3-element Array{StackTraces.StackFrame,1}:
-   example at none:3            
+   example at none:1
    eval_user_input at REPL.jl:62
    anonymous at task.jl:91
 ```
 
-Note that when calling `stacktrace` from the REPL, you'll always have those last two frames in the stack (`eval_user_input` from `REPL.jl` and `anonymous` from `task.jl`).
+Note that when calling `stacktrace` from the REPL you'll always have those last two frames in the stack (`eval_user_input` from `REPL.jl` and `anonymous` from `task.jl`).
+
+```julia
+julia> child() = stacktrace()
+child (generic function with 1 method)
+
+julia> parent() = child([]...)
+parent (generic function with 1 method)
+
+julia> grandparent() = parent([]...)
+grandparent (generic function with 1 method)
+
+julia> grandparent()
+5-element Array{StackTraces.StackFrame,1}:
+   child at none:1
+   parent at none:1
+   grandparent at none:1
+   eval_user_input at REPL.jl:62
+   anonymous at task.jl:91
+```
+
+If you're wondering why it's `parent() = child([]...)` instead of simply `parent() = child()`, it's because this syntax prevents Julia (in its current implementation, anyway) from optimizing (collapsing) these simple functions, which would change the stack trace for trivial toy examples like these.
 
 ### Extracting Useful Information
 
@@ -101,6 +120,33 @@ StackTrace with 3 StackFrames:
 ```
 
 Notice that the stack trace now indicates the appropriate line number.
+
+```julia
+julia> child() = error("Whoops!")
+child (generic function with 1 method)
+
+julia> parent() = child([]...)
+parent (generic function with 1 method)
+
+julia> function grandparent()
+           try
+               parent([]...)
+           catch err
+               println("ERROR: ", err.msg)
+               print(catch_stacktrace())
+           end
+       end
+grandparent (generic function with 1 method)
+
+julia> grandparent()
+ERROR: Whoops!
+StackTrace with 5 StackFrames:
+  child at none:1
+  parent at none:1
+  grandparent at none:3
+  eval_user_input at REPL.jl:62
+  anonymous at task.jl:91
+```
 
 ## Architecture and API
 
@@ -172,77 +218,6 @@ StackTrace with 2 StackFrames:
   eval_user_input at REPL.jl:62
   anonymous at task.jl:91
 ```
-
-## Limitations
-
-One of the limitations of the way Julia handles stack traces is the limited information provided 
-
-```julia
-julia> function child()
-           error("Can't find me!")
-       end
-child (generic function with 1 method)
-
-julia> function parent()
-           child()
-       end
-parent (generic function with 1 method)
-
-julia> function grandparent()
-           parent()
-       end
-grandparent (generic function with 1 method)
-
-julia> child()
-ERROR: Can't find me!
- in child at none:2
-
-julia> parent()
-ERROR: Can't find me!
- in parent at none:2
-
-julia> grandparent()
-ERROR: Can't find me!
- in grandparent at none:2
-```
-
-In a better world (and in this specific instance, sadly, Matlab qualifies), these last two calls would look like this:
-
-```julia
-julia> parent()
-ERROR: Can't find me!
- in child at none:2
- in parent at none:2
-
-julia> grandparent()
-ERROR: Can't find me!
- in child at none:2
- in parent at none:2
- in grandparent at none:2
-```
-
-Because `StackTraces.jl` relies on base Julia's `backtrace` function, the current implementation is also unable to provide more detail for exceptions that "bubble up" from deeper stack levels in this way:
-
-``` julia
-julia> function grandparent()
-           try
-               parent()
-	       catch err
-               println("ERROR: ", err.msg)
-               print(catch_stacktrace())
-           end
-       end
-grandparent (generic function with 1 method)
-
-julia> grandparent()
-ERROR: Can't find me!
-StackTrace with 3 StackFrames:
-  grandparent at none:4
-  eval_user_input at REPL.jl:62
-  anonymous at task.jl:91
-```
-
-For this reason (and several others), the best solution is to wrap unsafe operations in their own try-catch blocks.
 
 ## Comparison with `Base.backtrace`
 
