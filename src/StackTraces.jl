@@ -64,12 +64,11 @@ function format_frame(frame::StackFrame)
     string(frame.name != "" ? frame.name : "?", " at ", frame.file, ":", frame.line)
 end
 
-function format_stacktrace(stack::StackTrace, separator::AbstractString, finish::AbstractString="")
-    if isempty(stack)
-        return ""
-    end
-
-    string(separator, join(map(format_frame, stack), separator), finish)
+function format_stacktrace(
+    stack::StackTrace, separator::AbstractString, start::AbstractString="",
+    finish::AbstractString=""
+)
+    string(start, join(map(format_frame, stack), separator), finish)
 end
 
 function show(io::IO, frame::StackFrame)
@@ -79,7 +78,10 @@ end
 show(frame::StackFrame) = show(STDOUT, frame)
 
 function show(io::IO, stack::StackTrace)
-    println(io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")", format_stacktrace(stack, "\n  "))
+    println(
+        io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")",
+        format_stacktrace(stack, "\n  ", "\n  ")
+    )
 end
 
 show(stack::StackTrace) = show(STDOUT, stack)

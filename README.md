@@ -10,7 +10,7 @@
 Pkg.add("StackTraces")
 ```
 
-### View a Stack Trace
+### Viewing a Stack Trace
 
 The primary function used to obtain a stack trace is `stacktrace`:
 
@@ -102,8 +102,78 @@ StackTrace with 3 StackFrames:
 
 Notice that the stack trace now indicates the appropriate line number.
 
+## Architecture and API
 
-### Limitations
+### Types
+
+`StackFrame` is an immutable type with the following fields:
+
+* `name::Symbol`: the name of the function being executed
+* `file::Symbol`: the name of the file that contains the function
+* `line::Integer`: the line number in the file
+* `from_c::Bool`: true if the function is from C (rather than Julia)
+
+`StackTrace` is an alias for `Vector{StackFrame}` (or `Array{StackFrame, 1}`), provided for convenience. Calls to `stacktrace` return `StackTrace`s.
+
+### Functions
+
+#### stacktrace
+
+```julia
+stacktrace(trace::Vector{Ptr{Void}}, c_funcs::Bool)
+```
+
+Returns a `StackTrace` (vector of `StackFrame`s) representing either the current context or a context provided by output from a previous call to `Base.backtrace`.
+
+* `trace` (optional): output from a call to `backtrace` to be turned into a vector of `StackFrame`s
+* `c_funcs` (optional): true to include C calls in the resulting vector of `StackFrame`s (by default, C calls are removed)
+
+#### catch\_stacktrace
+
+```julia
+catch_stacktrace(c_funcs::Bool)
+```
+
+Returns a `StackTrace` representing context of the current (most recent) exception.
+
+#### format\_stacktrace
+
+```julia
+format_stacktrace(stack::StackTrace, separator::AbstractString, start::AbstractString, finish::AbstractString)
+```
+
+Returns a string representing a formatted `StackTrace`.
+
+* `stack`: the stack trace to format
+* `separator`: a string to use to separate each stack frame
+* `start` (optional): a string with which to prepend the formatted stack trace
+* `finish` (optional): a string to append to the formatted stack trace
+
+```julia
+julia> format_stacktrace(stacktrace(), ", ", "{", "}")
+"{eval_user_input at REPL.jl:62, anonymous at task.jl:91}"
+```
+
+You can, of course, format `StackTrace`s yourself by looping through (or `map`ing) the elements yourself.
+
+#### show\_stacktrace
+
+```julia
+show_stacktrace(io::IO)
+```
+
+For those accustomed to calling `Base.show_backtrace`, `StackTraces.jl` also includes a `show_stacktrace` function.
+
+* `io` (optional): the I/O stream to use for output (defaults to `STDOUT`)
+
+```julia
+julia> show_stacktrace(STDOUT)
+StackTrace with 2 StackFrames:
+  eval_user_input at REPL.jl:62
+  anonymous at task.jl:91
+```
+
+## Limitations
 
 One of the limitations of the way Julia handles stack traces is the limited information provided 
 
@@ -174,7 +244,7 @@ StackTrace with 3 StackFrames:
 
 For this reason (and several others), the best solution is to wrap unsafe operations in their own try-catch blocks.
 
-### Comparison with `backtrace`
+## Comparison with `Base.backtrace`
 
 Developers familiar with Julia's `backtrace` function, which returns a vector of `{Ptr{Void}`, may be interested to know that you can pass that vector into `stacktrace`:
 
@@ -204,7 +274,7 @@ julia> stacktrace(stack)
    anonymous at task.jl:91      
 ```
 
-You may notice that the vector returned by `backtrace` had 15 pointers, but the vector returned by `stacktrace` only had 3. This is because, by default, `stacktrace` removes any lower-level C functions from the stack. If you want to include stack frames from C calls, you can do it like this:
+You may notice that the vector returned by `Base.backtrace` had 15 pointers, but the vector returned by `stacktrace` only had 3. This is because, by default, `stacktrace` removes any lower-level C functions from the stack. If you want to include stack frames from C calls, you can do it like this:
 
 ```julia
 julia> stacktrace(stack, true)
@@ -224,13 +294,4 @@ julia> stacktrace(stack, true)
    jlcall_eval_user_input_21465 at :-1                                                   
    anonymous at task.jl:91                                                               
    jl_apply at /private/tmp/julia20150617-44010-dgl3rk/src/task.c:234
-```
-
-For those accustomed to calling `Base.show_backtrace`, `StackTraces.jl` also includes a `show_stacktrace` function:
-
-```julia
-julia> show_stacktrace()
-StackTrace with 2 StackFrames:
-  eval_user_input at REPL.jl:62
-  anonymous at task.jl:91
 ```
