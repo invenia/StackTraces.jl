@@ -19,8 +19,8 @@ julia> using StackTraces
 
 julia> stacktrace()
 2-element Array{StackTraces.StackFrame,1}:
-   eval_user_input at REPL.jl:62
-   anonymous at task.jl:91
+ StackTraces.StackFrame(:eval_user_input,symbol("REPL.jl"),62,symbol(""),-1,false) 
+ StackTraces.StackFrame(:anonymous,symbol("REPL.jl"),92,symbol("task.jl"),90,false)
 ```
 
 Calling `stacktrace` returns a vector of `StackFrame`s. For ease of use, the alias `StackTrace` can be used in place of `Vector{StackFrame}`.
@@ -31,40 +31,52 @@ example (generic function with 1 method)
 
 julia> example()
 3-element Array{StackTraces.StackFrame,1}:
-   example at none:1
-   eval_user_input at REPL.jl:62
-   anonymous at task.jl:91
+ StackTraces.StackFrame(:example,:none,1,symbol(""),-1,false)                      
+ StackTraces.StackFrame(:eval_user_input,symbol("REPL.jl"),62,symbol(""),-1,false) 
+ StackTraces.StackFrame(:anonymous,symbol("REPL.jl"),92,symbol("task.jl"),90,false)
+```
+
+If you'd like the output to be a little more human-readable, replace calls to `stacktrace` (which returns a vector of `StackFrame`s) with `show_stacktrace` (which prints the stacktrace to an IO stream).
+
+```julia
+julia> example() = show_stacktrace()
+example (generic function with 1 method)
+
+julia> example()
+StackTrace with 3 StackFrames:
+  example at none:1
+  eval_user_input at REPL.jl:62
+  anonymous at REPL.jl:92
 ```
 
 Note that when calling `stacktrace` from the REPL you'll always have those last two frames in the stack (`eval_user_input` from `REPL.jl` and `anonymous` from `task.jl`).
 
 ```julia
-julia> child() = stacktrace()
+julia> @noinline child() = show_stacktrace()
 child (generic function with 1 method)
 
-julia> parent() = child([]...)
+julia> @noinline parent() = child()
 parent (generic function with 1 method)
 
-julia> grandparent() = parent([]...)
+julia> grandparent() = parent()
 grandparent (generic function with 1 method)
 
 julia> grandparent()
-5-element Array{StackTraces.StackFrame,1}:
-   child at none:1
-   parent at none:1
-   grandparent at none:1
-   eval_user_input at REPL.jl:62
-   anonymous at task.jl:91
+StackTrace with 5 StackFrames:
+  child at none:1
+  parent at none:1
+  grandparent at none:1
+  eval_user_input at REPL.jl:62
+  anonymous at task.jl:91
 ```
-
-If you're wondering why it's `parent() = child([]...)` instead of simply `parent() = child()`, it's because this syntax prevents Julia (in its current implementation, anyway) from optimizing (collapsing) these simple functions, which would change the stack trace for trivial toy examples like these.
 
 ### Extracting Useful Information
 
-Each `StackFrame` contains the function name, file name, line number, and a flag indicating whether it is a C function (by default C functions do not appear in the stack trace):
+Each `StackFrame` contains the function name, file name, line number, file and line information for inlined functions, and a flag indicating whether it is a C function (by default C functions do not appear in the stack trace):
 
 ```julia
-julia> top_frame = stacktrace()[1];
+julia> top_frame = stacktrace()[1]
+StackTraces.StackFrame(:eval_user_input,symbol("REPL.jl"),62,symbol(""),-1,false)
 
 julia> top_frame.name
 :eval_user_input
@@ -74,6 +86,12 @@ symbol("REPL.jl")
 
 julia> top_frame.line
 62
+
+julia> top_frame.inline_file
+symbol("")
+
+julia> top_frame.inline_line
+-1
 
 julia> top_frame.from_c
 false
@@ -89,7 +107,7 @@ While having easy access to information about the current state of the callstack
 julia> example() = try
            error("Oh no!")
        catch
-           print(stacktrace())
+           show_stacktrace()
        end
 example (generic function with 1 method)
 
@@ -108,7 +126,7 @@ This can be remedied by calling `catch_stacktrace` instead of `stacktrace`. Inst
 julia> example() = try
            error("Oh no!")
        catch
-           print(catch_stacktrace())
+           show_stacktrace(catch_stacktrace())
        end
 example (generic function with 1 method)
 
@@ -122,18 +140,18 @@ StackTrace with 3 StackFrames:
 Notice that the stack trace now indicates the appropriate line number.
 
 ```julia
-julia> child() = error("Whoops!")
+julia> @noinline child() = error("Whoops!")
 child (generic function with 1 method)
 
-julia> parent() = child([]...)
+julia> @noinline parent() = child()
 parent (generic function with 1 method)
 
 julia> function grandparent()
            try
-               parent([]...)
+               parent()
            catch err
                println("ERROR: ", err.msg)
-               print(catch_stacktrace())
+               show_stacktrace(catch_stacktrace())
            end
        end
 grandparent (generic function with 1 method)
@@ -157,6 +175,8 @@ StackTrace with 5 StackFrames:
 * `name::Symbol`: the name of the function being executed
 * `file::Symbol`: the name of the file that contains the function
 * `line::Integer`: the line number in the file
+* `inline_file::Symbol`: the name of the file that contains the inlined function
+* `inline_line::Integer`: the line number in the file containing the inlined function
 * `from_c::Bool`: true if the function is from C (rather than Julia)
 
 `StackTrace` is an alias for `Vector{StackFrame}` (or `Array{StackFrame, 1}`), provided for convenience. Calls to `stacktrace` return `StackTrace`s.
@@ -182,13 +202,31 @@ catch_stacktrace(c_funcs::Bool)
 
 Returns a `StackTrace` representing context of the current (most recent) exception.
 
+#### show\_stacktrace
+
+```julia
+show_stacktrace(io::IO, stack::StackTrace)
+```
+
+For those accustomed to calling `Base.show_backtrace`, `StackTraces.jl` also includes a `show_stacktrace` function that provides handy formatted output.
+
+* `io` (optional): the I/O stream to use for output (defaults to `STDOUT`)
+* `stack` (optional): the stack trace to output (defaults to `stacktrace()`)
+
+```julia
+julia> show_stacktrace()
+StackTrace with 2 StackFrames:
+  eval_user_input at REPL.jl:62
+  anonymous at task.jl:91
+```
+
 #### format\_stacktrace
 
 ```julia
 format_stacktrace(stack::StackTrace, separator::AbstractString, start::AbstractString, finish::AbstractString)
 ```
 
-Returns a string representing a formatted `StackTrace`.
+Returns a human-readable string representing a formatted `StackTrace`.
 
 * `stack`: the stack trace to format
 * `separator`: a string to use to separate each stack frame
@@ -202,21 +240,19 @@ julia> format_stacktrace(stacktrace(), ", ", "{", "}")
 
 You can, of course, format `StackTrace`s yourself by looping through (or `map`ing) the elements yourself.
 
-#### show\_stacktrace
+#### format\_stackframe
 
 ```julia
-show_stacktrace(io::IO)
+format_stackframe(frame::StackFrame)
 ```
 
-For those accustomed to calling `Base.show_backtrace`, `StackTraces.jl` also includes a `show_stacktrace` function.
+Returns a human-readable string representing a formatted `StackFrame`.
 
-* `io` (optional): the I/O stream to use for output (defaults to `STDOUT`)
+* `frame`: the stack frame to format
 
 ```julia
-julia> show_stacktrace(STDOUT)
-StackTrace with 2 StackFrames:
-  eval_user_input at REPL.jl:62
-  anonymous at task.jl:91
+julia> format_stackframe(stacktrace()[1])
+"eval_user_input at REPL.jl:62"
 ```
 
 ## Comparison with `Base.backtrace`
@@ -226,27 +262,27 @@ Developers familiar with Julia's `backtrace` function, which returns a vector of
 ```julia
 julia> stack = backtrace()
 15-element Array{Ptr{Void},1}:
- Ptr{Void} @0x00000001096732ad
- Ptr{Void} @0x000000030c862550
- Ptr{Void} @0x000000030c8624d0
- Ptr{Void} @0x0000000109605ad6
- Ptr{Void} @0x000000010966dc74
- Ptr{Void} @0x000000010966c066
- Ptr{Void} @0x000000010966bfd8
- Ptr{Void} @0x000000010966d5dd
- Ptr{Void} @0x000000010966d3ff
- Ptr{Void} @0x000000010967e58b
- Ptr{Void} @0x000000010960d1c6
- Ptr{Void} @0x000000030c844acd
- Ptr{Void} @0x000000030c844707
- Ptr{Void} @0x000000030c83a8ce
- Ptr{Void} @0x0000000109673f87
+ Ptr{Void} @0x000000010face4ad
+ Ptr{Void} @0x0000000314157630
+ Ptr{Void} @0x00000003141575b0
+ Ptr{Void} @0x000000010fa5e086
+ Ptr{Void} @0x000000010fac8c65
+ Ptr{Void} @0x000000010fac7301
+ Ptr{Void} @0x000000010fac718c
+ Ptr{Void} @0x000000010fac876d
+ Ptr{Void} @0x000000010fac85a0
+ Ptr{Void} @0x000000010fadb8cb
+ Ptr{Void} @0x000000010fa666e7
+ Ptr{Void} @0x0000000314138984
+ Ptr{Void} @0x00000003141385d7
+ Ptr{Void} @0x000000031412cc22
+ Ptr{Void} @0x000000010facf28f
 
 julia> stacktrace(stack)
 3-element Array{StackTraces.StackFrame,1}:
-   backtrace at error.jl:26     
-   eval_user_input at REPL.jl:62
-   anonymous at task.jl:91      
+ StackTraces.StackFrame(:backtrace,symbol("error.jl"),26,symbol(""),-1,false)      
+ StackTraces.StackFrame(:eval_user_input,symbol("REPL.jl"),62,symbol(""),-1,false) 
+ StackTraces.StackFrame(:anonymous,symbol("REPL.jl"),92,symbol("task.jl"),90,false)
 ```
 
 You may notice that the vector returned by `Base.backtrace` had 15 pointers, but the vector returned by `stacktrace` only had 3. This is because, by default, `stacktrace` removes any lower-level C functions from the stack. If you want to include stack frames from C calls, you can do it like this:
@@ -254,19 +290,19 @@ You may notice that the vector returned by `Base.backtrace` had 15 pointers, but
 ```julia
 julia> stacktrace(stack, true)
 15-element Array{StackTraces.StackFrame,1}:
-   rec_backtrace at /private/tmp/julia20150617-44010-dgl3rk/src/task.c:647               
-   backtrace at error.jl:26                                                              
-   jlcall_backtrace_21678 at :-1                                                         
-   jl_apply at /private/tmp/julia20150617-44010-dgl3rk/src/gf.c:1632                     
-   jl_apply at /private/tmp/julia20150617-44010-dgl3rk/src/interpreter.c:55              
-   eval at /private/tmp/julia20150617-44010-dgl3rk/src/interpreter.c:212                 
-   eval at /private/tmp/julia20150617-44010-dgl3rk/src/interpreter.c:218                 
-   eval_body at /private/tmp/julia20150617-44010-dgl3rk/src/interpreter.c:592            
-   jl_toplevel_eval_body at /private/tmp/julia20150617-44010-dgl3rk/src/interpreter.c:527
-   jl_toplevel_eval_flex at /private/tmp/julia20150617-44010-dgl3rk/src/toplevel.c:480   
-   jl_toplevel_eval_in at /private/tmp/julia20150617-44010-dgl3rk/src/builtins.c:539     
-   eval_user_input at REPL.jl:62                                                         
-   jlcall_eval_user_input_21465 at :-1                                                   
-   anonymous at task.jl:91                                                               
-   jl_apply at /private/tmp/julia20150617-44010-dgl3rk/src/task.c:234
+ StackTraces.StackFrame(:rec_backtrace,symbol("/private/tmp/julia20151023-27429-gjs30g/src/task.c"),644,symbol("/private/tmp/julia20151023-27429-gjs30g/src/task.c"),703,true)
+ StackTraces.StackFrame(:backtrace,symbol("error.jl"),26,symbol(""),-1,false)
+ StackTraces.StackFrame(:jlcall_backtrace_21562,symbol(""),-1,symbol(""),-1,true)
+ StackTraces.StackFrame(:jl_apply,symbol("/private/tmp/julia20151023-27429-gjs30g/src/gf.c"),1691,symbol("/private/tmp/julia20151023-27429-gjs30g/src/gf.c"),1708,true)
+ StackTraces.StackFrame(:jl_apply,symbol("/private/tmp/julia20151023-27429-gjs30g/src/interpreter.c"),55,symbol("/private/tmp/julia20151023-27429-gjs30g/src/interpreter.c"),65,true)
+ StackTraces.StackFrame(:eval,symbol("/private/tmp/julia20151023-27429-gjs30g/src/interpreter.c"),213,symbol(""),-1,true)
+ StackTraces.StackFrame(:eval,symbol("/private/tmp/julia20151023-27429-gjs30g/src/interpreter.c"),219,symbol(""),-1,true)
+ StackTraces.StackFrame(:eval_body,symbol("/private/tmp/julia20151023-27429-gjs30g/src/interpreter.c"),592,symbol(""),-1,true)
+ StackTraces.StackFrame(:jl_toplevel_eval_body,symbol("/private/tmp/julia20151023-27429-gjs30g/src/interpreter.c"),527,symbol(""),-1,true)
+ StackTraces.StackFrame(:jl_toplevel_eval_flex,symbol("/private/tmp/julia20151023-27429-gjs30g/src/toplevel.c"),521,symbol(""),-1,true)
+ StackTraces.StackFrame(:jl_toplevel_eval_in,symbol("/private/tmp/julia20151023-27429-gjs30g/src/builtins.c"),579,symbol(""),-1,true)
+ StackTraces.StackFrame(:eval_user_input,symbol("REPL.jl"),62,symbol(""),-1,false)
+ StackTraces.StackFrame(:jlcall_eval_user_input_21347,symbol(""),-1,symbol(""),-1,true)
+ StackTraces.StackFrame(:anonymous,symbol("REPL.jl"),92,symbol("task.jl"),90,false)
+ StackTraces.StackFrame(:jl_apply,symbol("/private/tmp/julia20151023-27429-gjs30g/src/task.c"),241,symbol("/private/tmp/julia20151023-27429-gjs30g/src/task.c"),240,true)
 ```

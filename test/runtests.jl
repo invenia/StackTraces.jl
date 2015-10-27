@@ -1,22 +1,15 @@
 using StackTraces
 using FactCheck
 
-# write your own tests here
-# @test 1 == 1
 
-PATH = Symbol(abspath("test/runtests.jl"))
+@noinline child() = stacktrace()
+@noinline parent() = child()
+grandparent() = parent()
 
-# Calls are made by splatting an empty array because this (currently) prevents Julia from
-# optimizing (collapsing) these simple functions (and such optimizations change the stack
-# trace).
-child() = stacktrace()
-parent() = child([]...)
-grandparent() = parent([]...)
-
-bad_function() = error("Whoops!")
+@noinline bad_function() = error("Whoops!")
 function good_function()
     try
-        bad_function([]...)
+        bad_function()
     catch
         return catch_stacktrace()
     end
@@ -26,17 +19,18 @@ facts() do
     context("basic") do
         stack = grandparent()
         @fact stack[1:3] --> [
-            StackFrame(:child, PATH, 12, false),
-            StackFrame(:parent, PATH, 13, false),
-            StackFrame(:grandparent, PATH, 14, false)
+            StackFrame(:child, @__FILE__, 5, Symbol(""), -1, false),
+            StackFrame(:parent, @__FILE__, 6, Symbol(""), -1, false),
+            StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
         ]
     end
 
     context("try...catch") do
         stack = good_function()
-        @fact stack[1:2] --> [
-            StackFrame(:bad_function, PATH, 16, false),
-            StackFrame(:good_function, PATH, 19, false)
+        @fact stack[1].name --> :error
+        @fact stack[2:3] --> [
+            StackFrame(:bad_function, @__FILE__, 9, Symbol(""), -1, false),
+            StackFrame(:good_function, @__FILE__, 12, Symbol(""), -1, false)
         ]
     end
 end

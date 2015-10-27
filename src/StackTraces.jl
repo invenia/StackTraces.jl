@@ -1,15 +1,16 @@
 module StackTraces
 
 
-import Base.show
 export StackFrame, StackTrace
-export stacktrace, catch_stacktrace, format_stacktrace, show, show_stacktrace
+export stacktrace, catch_stacktrace, format_stacktrace, format_stackframe, show_stacktrace
 
 
 immutable StackFrame
     name::Symbol
     file::Symbol
     line::Integer
+    inline_file::Symbol
+    inline_line::Integer
     from_c::Bool
 end
 
@@ -29,7 +30,7 @@ function stacktrace(trace::Vector{Ptr{Void}}, c_funcs::Bool=false)
 
     # Convert the vector of tuples into a vector of StackFrames.
     stack = StackFrame[
-        StackFrame(frame[1:4]...) for frame in filter(f -> f !== nothing, stack)
+        StackFrame(frame[1:6]...) for frame in filter(f -> f !== nothing, stack)
     ]
 
     # Remove frames that come from C calls.
@@ -60,7 +61,7 @@ function remove_frames!(stack::StackTrace, name::Symbol)
     return stack
 end
 
-function format_frame(frame::StackFrame)
+function format_stackframe(frame::StackFrame)
     string(frame.name != "" ? frame.name : "?", " at ", frame.file, ":", frame.line)
 end
 
@@ -68,27 +69,24 @@ function format_stacktrace(
     stack::StackTrace, separator::AbstractString, start::AbstractString="",
     finish::AbstractString=""
 )
-    string(start, join(map(format_frame, stack), separator), finish)
+    if isempty(stack)
+        return ""
+    end
+
+    string(start, join(map(format_stackframe, stack), separator), finish)
 end
 
-function show(io::IO, frame::StackFrame)
-    print(io, "  ", format_frame(frame))
-end
-
-show(frame::StackFrame) = show(STDOUT, frame)
-
-function show(io::IO, stack::StackTrace)
+# Convenient analogue of Base.show_backtrace.
+function show_stacktrace(io::IO, stack::StackTrace)
     println(
         io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")",
         format_stacktrace(stack, "\n  ", "\n  ")
     )
 end
 
-show(stack::StackTrace) = show(STDOUT, stack)
-
-# Convenience functions for when you don't already have a stack trace handy.
-show_stacktrace() = show(STDOUT, remove_frames!(stacktrace(), :show_stacktrace))
-show_stacktrace(io::IO) = show(io, remove_frames!(stacktrace(), :show_stacktrace))
+show_stacktrace() = show_stacktrace(STDOUT)
+show_stacktrace(io::IO) = show_stacktrace(io, remove_frames!(stacktrace(), :show_stacktrace))
+show_stacktrace(stack::StackTrace) = show_stacktrace(STDOUT, stack)
 
 
 end
