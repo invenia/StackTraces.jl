@@ -56,8 +56,12 @@ above the specified function). Primarily used to remove StackTraces functions fr
 prior to returning it.
 """
 function remove_frames!(stack::StackTrace, name::Symbol)
-    # Remove the frame for a given function (and all functions called by that function).
-    splice!(stack, 1:findlast(map(frame -> frame.name == name, stack)))
+    splice!(stack, 1:findlast(frame -> frame.name == name, stack))
+    return stack
+end
+
+function remove_frames!(stack::StackTrace, names::Vector{Symbol})
+    splice!(stack, 1:findlast(frame -> in(frame.name, names), stack))
     return stack
 end
 
@@ -85,7 +89,11 @@ function show_stacktrace(io::IO, stack::StackTrace)
 end
 
 show_stacktrace() = show_stacktrace(STDOUT)
-show_stacktrace(io::IO) = show_stacktrace(io, remove_frames!(stacktrace(), :show_stacktrace))
+
+function show_stacktrace(io::IO)
+    show_stacktrace(io, remove_frames!(stacktrace(), :show_stacktrace))
+end
+
 show_stacktrace(stack::StackTrace) = show_stacktrace(STDOUT, stack)
 
 
