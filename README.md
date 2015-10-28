@@ -1,6 +1,8 @@
 # StackTraces.jl
 
 [![Build Status](https://travis-ci.org/invenia/StackTraces.jl.svg?branch=master)](https://travis-ci.org/invenia/StackTraces.jl)
+[![Build status](https://ci.appveyor.com/api/github/webhook?id=24lp146n8bk848e6)](https://ci.appveyor.com/project/spurll/stacktraces-jl)
+[![codecov.io](https://codecov.io/github/invenia/StackTraces.jl/coverage.svg?branch=master)](https://codecov.io/github/invenia/StackTraces.jl?branch=master)
 
 `StackTraces.jl` provides simple stack traces that are both human readable and easy to use programmatically.
 
@@ -306,3 +308,7 @@ julia> stacktrace(stack, true)
  StackTraces.StackFrame(:anonymous,symbol("REPL.jl"),92,symbol("task.jl"),90,false)
  StackTraces.StackFrame(:jl_apply,symbol("/private/tmp/julia20151023-27429-gjs30g/src/task.c"),241,symbol("/private/tmp/julia20151023-27429-gjs30g/src/task.c"),240,true)
 ```
+
+## License
+
+StackTraces.jl is provided under the Mozilla Public License, Version 2.0. See `LICENSE.md` for details.

@@ -6,7 +6,7 @@ using FactCheck
 @noinline parent() = child()
 grandparent() = parent()
 
-@noinline bad_function() = error("Whoops!")
+@noinline bad_function() = nonexistent_var
 function good_function()
     try
         bad_function()
@@ -14,6 +14,11 @@ function good_function()
         return catch_stacktrace()
     end
 end
+
+format_stack = [
+    StackFrame(:frame1, "path/file.1", 10, Symbol(""), -1, false),
+    StackFrame(:frame2, "path/file.2", 20, Symbol(""), -1, false)
+]
 
 facts() do
     context("basic") do
@@ -27,11 +32,27 @@ facts() do
 
     context("try...catch") do
         stack = good_function()
-        @fact stack[1].name --> :error
-        @fact stack[2:3] --> [
+        @fact stack[1:2] --> [
             StackFrame(:bad_function, @__FILE__, 9, Symbol(""), -1, false),
             StackFrame(:good_function, @__FILE__, 12, Symbol(""), -1, false)
         ]
+    end
+
+    context("formatting") do
+        @fact format_stackframe(format_stack[1]) --> "frame1 at path/file.1:10"
+        @fact format_stacktrace(format_stack, ", ", "{", "}") -->
+            "{frame1 at path/file.1:10, frame2 at path/file.2:20}"
+    end
+
+    context("output") do
+        io = IOBuffer()
+        show_stacktrace(io, format_stack)
+        @fact takebuf_string(io) -->
+            """
+            StackTrace with 2 StackFrames:
+              frame1 at path/file.1:10
+              frame2 at path/file.2:20
+            """
     end
 end
 
