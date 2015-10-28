@@ -30,6 +30,17 @@ facts() do
         ]
     end
 
+    context("remove_frames!") do
+        stack = StackTraces.remove_frames!(grandparent(), :parent)
+        @fact stack[1] --> StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
+
+        stack = StackTraces.remove_frames!(grandparent(), [:child, :something_nonexistent])
+        @fact stack[1:2] --> [
+            StackFrame(:parent, @__FILE__, 6, Symbol(""), -1, false),
+            StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
+        ]
+    end
+
     context("try...catch") do
         stack = good_function()
         @fact stack[1:2] --> [

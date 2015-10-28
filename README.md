@@ -1,7 +1,7 @@
 # StackTraces.jl
 
 [![Build Status](https://travis-ci.org/invenia/StackTraces.jl.svg?branch=master)](https://travis-ci.org/invenia/StackTraces.jl)
-[![Build status](https://ci.appveyor.com/api/github/webhook?id=24lp146n8bk848e6)](https://ci.appveyor.com/project/spurll/stacktraces-jl)
+[![Build status](https://ci.appveyor.com/api/projects/status/24lp146n8bk848e6?svg=true)](https://ci.appveyor.com/project/invenia/stacktraces-jl)
 [![codecov.io](https://codecov.io/github/invenia/StackTraces.jl/coverage.svg?branch=master)](https://codecov.io/github/invenia/StackTraces.jl?branch=master)
 
 `StackTraces.jl` provides simple stack traces that are both human readable and easy to use programmatically.

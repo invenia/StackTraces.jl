@@ -31,4 +31,4 @@ build_script:
       Pkg.clone(pwd(), \"StackTraces\"); Pkg.build(\"StackTraces\")"
 
 test_script:
-  - C:\projects\julia\bin\julia --check-bounds=yes -e "Pkg.test(\"StackTraces\")"
+  - C:\projects\julia\bin\julia --check-bounds=yes --inline=no -e "Pkg.test(\"StackTraces\", coverage=true)"
