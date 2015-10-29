@@ -30,6 +30,14 @@ facts() do
         ]
     end
 
+    context("c_funcs") do
+        default, with_c, without_c = stacktrace(), stacktrace(true), stacktrace(false)
+        @fact default --> without_c
+        @fact length(with_c) --> greater_than(length(without_c))
+        @fact filter(frame -> frame.from_c, with_c) --> not(isempty)
+        @fact filter(frame -> frame.from_c, without_c) --> isempty
+    end
+
     context("remove_frames!") do
         stack = StackTraces.remove_frames!(grandparent(), :parent)
         @fact stack[1] --> StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
@@ -53,6 +61,7 @@ facts() do
         @fact format_stackframe(format_stack[1]) --> "frame1 at path/file.1:10"
         @fact format_stacktrace(format_stack, ", ", "{", "}") -->
             "{frame1 at path/file.1:10, frame2 at path/file.2:20}"
+        @fact format_stacktrace(StackTrace(), ", ") --> ""
     end
 
     context("output") do
@@ -64,6 +73,7 @@ facts() do
               frame1 at path/file.1:10
               frame2 at path/file.2:20
             """
+        show_stacktrace()   # Improves code coverage.
     end
 end
 
