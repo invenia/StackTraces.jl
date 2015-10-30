@@ -8,9 +8,9 @@ export stacktrace, catch_stacktrace, format_stacktrace, format_stackframe, show_
 immutable StackFrame
     name::Symbol
     file::Symbol
-    line::Integer
+    line::Int
     inline_file::Symbol
-    inline_line::Integer
+    inline_line::Int
     from_c::Bool
 end
 

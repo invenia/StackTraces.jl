@@ -4,10 +4,10 @@ using FactCheck
 
 @noinline child() = stacktrace()
 @noinline parent() = child()
-grandparent() = parent()
+@noinline grandparent() = parent()
 
 @noinline bad_function() = nonexistent_var
-function good_function()
+@noinline function good_function()
     try
         bad_function()
     catch
@@ -30,7 +30,7 @@ facts() do
         ]
     end
 
-    context("c_funcs") do
+    context("from_c") do
         default, with_c, without_c = stacktrace(), stacktrace(true), stacktrace(false)
         @fact default --> without_c
         @fact length(with_c) --> greater_than(length(without_c))
@@ -58,10 +58,24 @@ facts() do
     end
 
     context("formatting") do
-        @fact format_stackframe(format_stack[1]) --> "frame1 at path/file.1:10"
-        @fact format_stacktrace(format_stack, ", ", "{", "}") -->
-            "{frame1 at path/file.1:10, frame2 at path/file.2:20}"
-        @fact format_stacktrace(StackTrace(), ", ") --> ""
+        context("frame") do
+            @fact format_stackframe(format_stack[1]) --> "frame1 at path/file.1:10"
+        end
+
+        context("stack") do
+            @fact format_stacktrace(format_stack, ", ") -->
+                "frame1 at path/file.1:10, frame2 at path/file.2:20"
+            @fact format_stacktrace(format_stack, ", ", "Stack: ") -->
+                "Stack: frame1 at path/file.1:10, frame2 at path/file.2:20"
+            @fact format_stacktrace(format_stack, ", ", "{", "}") -->
+                "{frame1 at path/file.1:10, frame2 at path/file.2:20}"
+        end
+
+        context("empty") do
+            @fact format_stacktrace(StackTrace(), ", ") --> ""
+            @fact format_stacktrace(StackTrace(), ", ", "Stack: ") --> ""
+            @fact format_stacktrace(StackTrace(), ", ", "{", "}") --> ""
+        end
     end
 
     context("output") do
