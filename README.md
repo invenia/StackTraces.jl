@@ -311,4 +311,4 @@ julia> stacktrace(stack, true)
 
 ## License
 
-StackTraces.jl is provided under the Mozilla Public License, Version 2.0. See `LICENSE.md` for details.
+StackTraces.jl is provided under the MIT "Expat" License. See `LICENSE.md` for details.
