@@ -23,11 +23,12 @@ format_stack = [
 facts() do
     context("basic") do
         stack = grandparent()
-        @fact stack[1:3] --> [
-            StackFrame(:child, @__FILE__, 5, Symbol(""), -1, false),
-            StackFrame(:parent, @__FILE__, 6, Symbol(""), -1, false),
-            StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
-        ]
+        @fact [:child, :parent, :grandparent] --> [f.name for f in stack[1:3]]
+        for (line, frame) in zip(5:7, stack[1:3])
+            @fact [Symbol(@__FILE__), line] -->
+                anyof([frame.file, frame.line], [frame.inline_file, frame.inline_line])
+        end
+        @fact [false, false, false] --> [f.from_c for f in stack[1:3]]
     end
 
     context("from_c") do
