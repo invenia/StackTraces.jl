@@ -1,21 +1,37 @@
 module StackTraces
 
 
+import Base: ==
+
 export StackFrame, StackTrace
-export stacktrace, catch_stacktrace, format_stacktrace, format_stackframe, show_stacktrace
+export stacktrace, catch_stacktrace, format_stacktrace, format_stackframe, show_stacktrace, ==
 
 
 immutable StackFrame
-    name::Symbol
+    func::Symbol
     file::Symbol
     line::Int
-    inline_file::Symbol
-    inline_line::Int
+    inlined_file::Symbol
+    inlined_line::Int
     from_c::Bool
+    pointer::Int64
 end
 
 typealias StackTrace Vector{StackFrame}
 
+
+function ==(a::StackFrame, b::StackFrame)
+    a.line == b.line && a.from_c == b.from_c && a.func == b.func && a.file == b.file
+end
+
+
+"""
+Given a pointer, looks up stack frame context information.
+"""
+function lookup(pointer::Ptr{Void})
+    frame_info = ccall(:jl_lookup_code_address, Any, (Ptr{Void}, Cint), pointer, 0)
+    return (length(frame_info) == 7) ? StackFrame(frame_info...) : UNKNOWN
+end
 
 """
 Returns a stack trace in the form of a vector of StackFrames. Each StackFrame contains a
@@ -23,15 +39,7 @@ function name, a file name, a line number, and a flag indicating whether it's a 
 (By default `stacktrace` doesn't return C functions, but this can be enabled.)
 """
 function stacktrace(trace::Vector{Ptr{Void}}, c_funcs::Bool=false)
-    stack = [
-        ccall(:jl_lookup_code_address, Any, (Ptr{Void}, Cint), frame, 0)
-        for frame in trace
-    ]
-
-    # Convert the vector of tuples into a vector of StackFrames.
-    stack = StackFrame[
-        StackFrame(frame[1:6]...) for frame in filter(f -> f !== nothing, stack)
-    ]
+    stack = map(lookup, trace)
 
     # Remove frames that come from C calls.
     if !c_funcs
@@ -56,45 +64,63 @@ above the specified function). Primarily used to remove StackTraces functions fr
 prior to returning it.
 """
 function remove_frames!(stack::StackTrace, name::Symbol)
-    splice!(stack, 1:findlast(frame -> frame.name == name, stack))
+    splice!(stack, 1:findlast(frame -> frame.func == name, stack))
     return stack
 end
 
 function remove_frames!(stack::StackTrace, names::Vector{Symbol})
-    splice!(stack, 1:findlast(frame -> in(frame.name, names), stack))
+    splice!(stack, 1:findlast(frame -> in(frame.func, names), stack))
     return stack
 end
 
-function format_stackframe(frame::StackFrame)
-    string(frame.name != "" ? frame.name : "?", " at ", frame.file, ":", frame.line)
+function format_stackframe(frame::StackFrame; full_path::Bool=false)
+    file_info = "$(full_path ? frame.file : basename(string(frame.file))):$(frame.line)"
+
+    if frame.inlined_file != Symbol("")
+        inline_info = "[inlined code from $file_info] "
+        file_info = string(
+            full_path ? frame.inlined_file : basename(string(frame.inlined_file)),
+            ":", frame.inlined_line
+        )
+    else
+        inline_info = ""
+    end
+
+    "$inline_info$(frame.func != "" ? frame.func : "?") at $file_info"
 end
 
 function format_stacktrace(
     stack::StackTrace, separator::AbstractString, start::AbstractString="",
-    finish::AbstractString=""
+    finish::AbstractString=""; full_path::Bool=false
 )
     if isempty(stack)
         return ""
     end
 
-    string(start, join(map(format_stackframe, stack), separator), finish)
-end
-
-# Convenient analogue of Base.show_backtrace.
-function show_stacktrace(io::IO, stack::StackTrace)
-    println(
-        io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")",
-        format_stacktrace(stack, "\n  ", "\n  ")
+    string(
+        start,
+        join(map(f -> format_stackframe(f, full_path=full_path), stack), separator),
+        finish
     )
 end
 
-show_stacktrace() = show_stacktrace(STDOUT)
-
-function show_stacktrace(io::IO)
-    show_stacktrace(io, remove_frames!(stacktrace(), :show_stacktrace))
+# Convenient analogue of Base.show_backtrace.
+function show_stacktrace(io::IO, stack::StackTrace; full_path::Bool=false)
+    println(
+        io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")",
+        format_stacktrace(stack, "\n  ", "\n  "; full_path=full_path)
+    )
 end
 
-show_stacktrace(stack::StackTrace) = show_stacktrace(STDOUT, stack)
+show_stacktrace(; full_path::Bool=false) = show_stacktrace(STDOUT; full_path=full_path)
+
+function show_stacktrace(io::IO; full_path::Bool=false)
+    show_stacktrace(io, remove_frames!(stacktrace(), :show_stacktrace); full_path=full_path)
+end
+
+function show_stacktrace(stack::StackTrace; full_path::Bool=false)
+    show_stacktrace(STDOUT, stack; full_path=full_path)
+end
 
 
 end

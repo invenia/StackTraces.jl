@@ -16,17 +16,17 @@ using FactCheck
 end
 
 format_stack = [
-    StackFrame(:frame1, "path/file.1", 10, Symbol(""), -1, false),
-    StackFrame(:frame2, "path/file.2", 20, Symbol(""), -1, false)
+    StackFrame(:frame1, "path/file.1", 10, "path/file.inline", 0, false, 0),
+    StackFrame(:frame2, "path/file.2", 20, Symbol(""), -1, false, 0)
 ]
 
 facts() do
     context("basic") do
         stack = grandparent()
-        @fact [:child, :parent, :grandparent] --> [f.name for f in stack[1:3]]
+        @fact [:child, :parent, :grandparent] --> [f.func for f in stack[1:3]]
         for (line, frame) in zip(5:7, stack[1:3])
             @fact [Symbol(@__FILE__), line] -->
-                anyof([frame.file, frame.line], [frame.inline_file, frame.inline_line])
+                anyof([frame.file, frame.line], [frame.inlined_file, frame.inlined_line])
         end
         @fact [false, false, false] --> [f.from_c for f in stack[1:3]]
     end
@@ -41,35 +41,65 @@ facts() do
 
     context("remove_frames!") do
         stack = StackTraces.remove_frames!(grandparent(), :parent)
-        @fact stack[1] --> StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
+        @fact stack[1] --> StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false, 0)
 
         stack = StackTraces.remove_frames!(grandparent(), [:child, :something_nonexistent])
         @fact stack[1:2] --> [
-            StackFrame(:parent, @__FILE__, 6, Symbol(""), -1, false),
-            StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false)
+            StackFrame(:parent, @__FILE__, 6, Symbol(""), -1, false, 0),
+            StackFrame(:grandparent, @__FILE__, 7, Symbol(""), -1, false, 0)
         ]
     end
 
     context("try...catch") do
         stack = good_function()
         @fact stack[1:2] --> [
-            StackFrame(:bad_function, @__FILE__, 9, Symbol(""), -1, false),
-            StackFrame(:good_function, @__FILE__, 12, Symbol(""), -1, false)
+            StackFrame(:bad_function, @__FILE__, 9, Symbol(""), -1, false, 0),
+            StackFrame(:good_function, @__FILE__, 12, Symbol(""), -1, false, 0)
         ]
     end
 
     context("formatting") do
         context("frame") do
-            @fact format_stackframe(format_stack[1]) --> "frame1 at path/file.1:10"
+            @fact format_stackframe(format_stack[1]) -->
+                "[inlined code from file.1:10] frame1 at file.inline:0"
+            @fact format_stackframe(format_stack[1]; full_path=true) -->
+                "[inlined code from path/file.1:10] frame1 at path/file.inline:0"
+
+            @fact format_stackframe(format_stack[2]) --> "frame2 at file.2:20"
+            @fact format_stackframe(format_stack[2]; full_path=true) -->
+                "frame2 at path/file.2:20"
         end
 
         context("stack") do
             @fact format_stacktrace(format_stack, ", ") -->
-                "frame1 at path/file.1:10, frame2 at path/file.2:20"
+                "[inlined code from file.1:10] frame1 at file.inline:0, frame2 at file.2:20"
+            @fact format_stacktrace(format_stack, ", "; full_path=true) -->
+                string(
+                    "[inlined code from path/file.1:10] ",
+                    "frame1 at path/file.inline:0, frame2 at path/file.2:20"
+                )
+
             @fact format_stacktrace(format_stack, ", ", "Stack: ") -->
-                "Stack: frame1 at path/file.1:10, frame2 at path/file.2:20"
+                string(
+                    "Stack: [inlined code from file.1:10] ",
+                    "frame1 at file.inline:0, frame2 at file.2:20"
+                )
+            @fact format_stacktrace(format_stack, ", ", "Stack: "; full_path=true) -->
+                string(
+                    "Stack: [inlined code from path/file.1:10] ",
+                    "frame1 at path/file.inline:0, frame2 at path/file.2:20"
+                )
+
             @fact format_stacktrace(format_stack, ", ", "{", "}") -->
-                "{frame1 at path/file.1:10, frame2 at path/file.2:20}"
+                string(
+                    "{[inlined code from file.1:10] ",
+                    "frame1 at file.inline:0, frame2 at file.2:20}"
+                )
+            @fact format_stacktrace(format_stack, ", ", "{", "}", full_path=true) -->
+                string(
+                    "{[inlined code from path/file.1:10] ",
+                    "frame1 at path/file.inline:0, frame2 at path/file.2:20}"
+                )
         end
 
         context("empty") do
@@ -85,8 +115,8 @@ facts() do
         @fact takebuf_string(io) -->
             """
             StackTrace with 2 StackFrames:
-              frame1 at path/file.1:10
-              frame2 at path/file.2:20
+              [inlined code from file.1:10] frame1 at file.inline:0
+              frame2 at file.2:20
             """
         show_stacktrace()   # Improves code coverage.
     end
