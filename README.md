@@ -74,7 +74,7 @@ StackTrace with 5 StackFrames:
 
 ### Extracting Useful Information
 
-Each `StackFrame` contains the function name, file name, line number, file and line information for inlined functions, a flag indicating whether it is a C function (by default C functions do not appear in the stack trace), and an integer representation of the pointer returned by `Base.backtrace`:
+Each `StackFrame` contains the function name, file name, line number, file and line information for inlined functions, a flag indicating whether it is a C function (by default C functions do not appear in the stack trace), and an integer representation of the pointer returned by `backtrace`:
 
 ```julia
 julia> top_frame = stacktrace()[1]
@@ -123,7 +123,7 @@ StackTrace with 3 StackFrames:
   [inlined code from REPL.jl:92] anonymous at task.jl:63
 ```
 
-You may notice that in the example above the first stack frame points points at line 4, where `stacktraces` is called, rather than line 2, where the error occurred. While in this example it's trivial to track down the actual source of the error, things can get misleading pretty quickly if the stack trace doesn't even point to the right function.
+You may notice that in the example above the first stack frame points points at line 4, where `stacktrace` is called, rather than line 2, where the error occurred. While in this example it's trivial to track down the actual source of the error, things can get misleading pretty quickly if the stack trace doesn't even point to the right function.
 
 This can be remedied by calling `catch_stacktrace` instead of `stacktrace`. Instead of returning callstack information for the current context, `catch_stacktrace` returns stack information for the context of the most recent error:
 
@@ -177,15 +177,17 @@ StackTrace with 5 StackFrames:
 
 `StackFrame` is an immutable type with the following fields:
 
-* `func::Symbol`: the name of the function being executed
-* `file::Symbol`: the name of the file that contains the function
-* `line::Integer`: the line number in the file
-* `inlined_file::Symbol`: the name of the file that contains the inlined function
-* `inlined_line::Integer`: the line number in the file containing the inlined function
-* `from_c::Bool`: true if the function is from C (rather than Julia)
-* `pointer::Int64`: a representation of the pointer to the stack context as returned by `Base.backtrace`
+* `func::Symbol`: the name of the function containing the execution context
+* `file::Symbol`: the path to the file containing the execution context
+* `line::Integer`: the line number in the file containing the execution context
+* `inlined_file::Symbol`: the path to the file containing the context for inlined code
+* `inlined_line::Integer`: the line number in the file containing the context for inlined code
+* `from_c::Bool`: true if the function is from C
+* `pointer::Int64`: a representation of the pointer to the stack context as returned by `backtrace`
 
 `StackTrace` is an alias for `Vector{StackFrame}` (or `Array{StackFrame, 1}`), provided for convenience. Calls to `stacktrace` return `StackTrace`s.
+
+Neither `StackTrace` nor `StackFrame` are exported.
 
 ### Functions
 
@@ -195,7 +197,7 @@ StackTrace with 5 StackFrames:
 stacktrace(trace::Vector{Ptr{Void}}, c_funcs::Bool)
 ```
 
-Returns a `StackTrace` (vector of `StackFrame`s) representing either the current context or a context provided by output from a previous call to `Base.backtrace`.
+Returns a `StackTrace` (vector of `StackFrame`s) representing either the current context or a context provided by output from a previous call to `backtrace`.
 
 * `trace` (optional): output from a call to `backtrace` to be turned into a vector of `StackFrame`s
 * `c_funcs` (optional): true to include C calls in the resulting vector of `StackFrame`s (by default, C calls are removed)
@@ -264,9 +266,9 @@ julia> format_stackframe(stacktrace()[1])
 "eval_user_input at REPL.jl:62"
 ```
 
-## Comparison with `Base.backtrace`
+## Comparison with `backtrace`
 
-Developers familiar with Julia's `backtrace` function, which returns a vector of `{Ptr{Void}`, may be interested to know that you can pass that vector into `stacktrace`:
+Developers familiar with Julia's `backtrace` function, which returns a vector of `Ptr{Void}`, may be interested to know that you can pass that vector into `stacktrace`:
 
 ```julia
 julia> stack = backtrace()
@@ -294,7 +296,7 @@ julia> stacktrace(stack)
  StackTraces.StackFrame(:anonymous,symbol("REPL.jl"),92,symbol("task.jl"),63,false,13203037218)
 ```
 
-You may notice that the vector returned by `Base.backtrace` had 15 pointers, but the vector returned by `stacktrace` only had 3. This is because, by default, `stacktrace` removes any lower-level C functions from the stack. If you want to include stack frames from C calls, you can do it like this:
+You may notice that the vector returned by `backtrace` had 15 pointers, but the vector returned by `stacktrace` only had 3. This is because, by default, `stacktrace` removes any lower-level C functions from the stack. If you want to include stack frames from C calls, you can do it like this:
 
 ```julia
 julia> stacktrace(stack, true)
