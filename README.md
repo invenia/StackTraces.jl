@@ -6,6 +6,10 @@
 
 `StackTraces.jl` provides simple stack traces that are both human readable and easy to use programmatically.
 
+#### StackTraces functionality has been merged into the Julia standard library as of v0.5.
+##### Moving forward, please use [`Base.stacktrace()`](http://docs.julialang.org/en/latest/stdlib/stacktraces/#Base.stacktrace) and [`Base.catch_stacktrace()`](http://docs.julialang.org/en/latest/stdlib/stacktraces/#Base.catch_stacktrace) instead.
+##### Documentation is available [here](http://docs.julialang.org/en/latest/manual/stacktraces/).
+
 ## Quick Start
 
 ```julia
