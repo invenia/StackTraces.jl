@@ -3,6 +3,8 @@ module StackTraces
 
 import Base: ==
 
+VERSION >= v"0.5.0-dev+2420" && warn("StackTraces.jl is deprecated. Please use Base.stacktrace() and Base.catch_stacktrace() instead.")
+
 export StackFrame, StackTrace
 export stacktrace, catch_stacktrace, format_stacktrace, format_stackframe, show_stacktrace, ==
 
@@ -19,9 +21,18 @@ end
 
 typealias StackTrace Vector{StackFrame}
 
+const UNKNOWN = StackFrame(Symbol("???"), Symbol("???"), -1, Symbol(""), -1, true, 0)
+
 
 function ==(a::StackFrame, b::StackFrame)
     a.line == b.line && a.from_c == b.from_c && a.func == b.func && a.file == b.file
+end
+
+function hash(frame::StackFrame, h::UInt)
+    h += 0xf4fbda67fe20ce88 % UInt
+    h = hash(frame.line, h)
+    h = hash(frame.file, h)
+    h = hash(frame.func, h)
 end
 
 
@@ -29,9 +40,12 @@ end
 Given a pointer, looks up stack frame context information.
 """
 function lookup(pointer::Ptr{Void})
-    frame_info = ccall(:jl_lookup_code_address, Any, (Ptr{Void}, Cint), pointer, 0)
+    frame_info = ccall(:jl_lookup_code_address, Any, (Ptr{Void}, Cint), pointer - 1, 0)
     return (length(frame_info) == 7) ? StackFrame(frame_info...) : UNKNOWN
 end
+
+lookup(pointer::UInt) = lookup(convert(Ptr{Void}, pointer))
+
 
 """
 Returns a stack trace in the form of a vector of StackFrames. Each StackFrame contains a
@@ -104,7 +118,6 @@ function format_stacktrace(
     )
 end
 
-# Convenient analogue of Base.show_backtrace.
 function show_stacktrace(io::IO, stack::StackTrace; full_path::Bool=false)
     println(
         io, "StackTrace with $(length(stack)) StackFrames$(isempty(stack) ? "" : ":")",
